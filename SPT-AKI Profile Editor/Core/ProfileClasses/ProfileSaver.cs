@@ -287,6 +287,10 @@ namespace SPT_AKI_Profile_Editor.Core.ProfileClasses
                 List<JToken> questsForRemove = [];
 
                 var questsObject = questsToken.ToObject<CharacterQuest[]>();
+                // SPT 5.0 stores quest statuses as numbers, older versions as names
+                bool numericStatuses = questsToken.Any()
+                    ? questsToken.Any(x => x["status"]?.Type == JTokenType.Integer)
+                    : IsSptVersionAtLeast(pmc.Root, 5);
                 if (questsObject.Length != 0)
                 {
                     for (int index = 0; index < questsObject.Length; ++index)
@@ -299,9 +303,9 @@ namespace SPT_AKI_Profile_Editor.Core.ProfileClasses
                         {
                             if (quest != null && quest.Status != edited.Status)
                             {
-                                questToken["status"] = edited.Status.ToString();
+                                questToken["status"] = QuestStatusToken(edited.Status, numericStatuses);
                                 questToken["startTime"] = edited.StartTime;
-                                questToken["statusTimers"] = JObject.FromObject(edited.StatusTimers);
+                                questToken["statusTimers"] = QuestStatusTimersToken(edited.StatusTimers, numericStatuses);
                                 if (edited.Status <= QuestStatus.AvailableForStart && questToken["completedConditions"] != null)
                                     questToken["completedConditions"]?.Replace(JToken.FromObject(Array.Empty<string>()));
                             }
@@ -317,18 +321,45 @@ namespace SPT_AKI_Profile_Editor.Core.ProfileClasses
                     {
                         var lastQuestToken = questsToken.LastOrDefault();
                         if (lastQuestToken != null)
-                            lastQuestToken.AddAfterSelf(JObject.FromObject(quest));
+                            lastQuestToken.AddAfterSelf(QuestToken(quest, numericStatuses));
                         else
                         {
-                            questsToken.Replace(JToken.FromObject(new CharacterQuest[] { quest }));
+                            questsToken.Replace(new JArray(QuestToken(quest, numericStatuses)));
                             questsToken = pmc.SelectToken("Quests");
                         }
                     }
                 }
                 else
-                    questsToken.Replace(JToken.FromObject(profile.Characters.Pmc.Quests));
+                    questsToken.Replace(new JArray(profile.Characters.Pmc.Quests.Select(x => QuestToken(x, numericStatuses))));
             }
             catch (Exception ex) { exceptions.Add(new(SaveEntry.Quests, ex)); }
+        }
+
+        private static JObject QuestToken(CharacterQuest quest, bool numericStatuses)
+        {
+            var questToken = JObject.FromObject(quest);
+            questToken["status"] = QuestStatusToken(quest.Status, numericStatuses);
+            questToken["statusTimers"] = QuestStatusTimersToken(quest.StatusTimers, numericStatuses);
+            return questToken;
+        }
+
+        private static bool IsSptVersionAtLeast(JToken root, int major)
+        {
+            // Profile version looks like "5.0.0 - BLEEDINGEDGE (47965)"
+            var version = root.SelectToken("spt.version")?.ToString();
+            var majorPart = version?.Split('.')[0];
+            return int.TryParse(majorPart, out int value) && value >= major;
+        }
+
+        private static JToken QuestStatusToken(QuestStatus status, bool numericStatuses)
+            => numericStatuses ? new JValue((int)status) : new JValue(status.ToString());
+
+        private static JObject QuestStatusTimersToken(Dictionary<QuestStatus, double> statusTimers, bool numericStatuses)
+        {
+            var timersToken = new JObject();
+            foreach (var timer in statusTimers ?? [])
+                timersToken[numericStatuses ? ((int)timer.Key).ToString() : timer.Key.ToString()] = timer.Value;
+            return timersToken;
         }
 
         private void WriteSkills(CharacterSkill[] skills, JToken character, string type, SaveEntry entry)

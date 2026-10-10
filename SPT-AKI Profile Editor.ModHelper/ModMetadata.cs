@@ -8,8 +8,8 @@ public record ModMetadata : IModMetadata
     public string Name { get; init; } = "[SPT-AKI Profile Editor] Helper Mod";
     public string Author { get; init; } = "SkiTles55";
     public List<string>? Contributors { get; init; } = [];
-    public SemanticVersioning.Version Version { get; init; } = new("0.0.8");
-    public SemanticVersioning.Range SptVersion { get; init; } = new("~4.1.0");
+    public SemanticVersioning.Version Version { get; init; } = new("0.0.9");
+    public SemanticVersioning.Range SptVersion { get; init; } = new("~5.0.0");
     public bool HasPrepatcher { get; init; } = false;
     public List<string>? Incompatibilities { get; init; } = [];
     public Dictionary<string, SemanticVersioning.Range>? ModDependencies { get; init; } = [];
